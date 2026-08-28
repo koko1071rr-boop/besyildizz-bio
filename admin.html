@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin Panel — Link Yönlendirme Merkezi</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .field-input {
+    width: 100%;
+    background: rgb(15 23 42 / 0.6);
+    border: 1px solid rgb(51 65 85);
+    border-radius: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    color: #f1f5f9;
+    font-size: 0.9rem;
+    outline: none;
+  }
+  .field-input:focus { border-color: rgb(99 102 241); }
+  .field-input:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primary {
+    background: rgb(99 102 241);
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.55rem 1.1rem;
+    border-radius: 0.6rem;
+    transition: background 0.15s ease;
+  }
+  .btn-primary:hover { background: rgb(79 82 221); }
+  .btn-secondary {
+    background: rgb(30 41 59);
+    border: 1px solid rgb(51 65 85);
+    color: rgb(226 232 240);
+    font-size: 0.875rem;
+    padding: 0.55rem 1rem;
+    border-radius: 0.6rem;
+    transition: background 0.15s ease;
+  }
+  .btn-secondary:hover { background: rgb(51 65 85); }
+  .icon-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 2rem; height: 2rem; border-radius: 0.5rem;
+    background: rgb(30 41 59); border: 1px solid rgb(51 65 85); color: rgb(203 213 225);
+  }
+  .icon-btn:hover { background: rgb(51 65 85); }
+  .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .page-list-item-wrap {
+    border-radius: 0.6rem;
+    border: 1px solid transparent;
+  }
+  .page-list-item-wrap:hover { background: rgb(30 41 59); }
+  .page-list-item-wrap.active { background: rgb(30 41 59); border-color: rgb(99 102 241); }
+  .page-list-item-main {
+    display: flex; flex-direction: column; gap: 0.15rem;
+    width: 100%; text-align: left; cursor: pointer;
+    padding: 0.6rem 0.75rem 0.35rem; background: transparent; border: none; color: inherit;
+  }
+  .page-list-actions {
+    display: flex; gap: 0.35rem; padding: 0 0.5rem 0.5rem;
+  }
+  .page-list-actions .icon-btn {
+    width: 1.7rem; height: 1.7rem;
+  }
+  .toast {
+    padding: 0.65rem 1rem;
+    border-radius: 0.6rem;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+    border: 1px solid;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .toast.success { background: rgb(6 40 27); border-color: rgb(16 122 79); color: rgb(110 231 183); }
+  .toast.error { background: rgb(45 12 12); border-color: rgb(153 27 27); color: rgb(252 165 165); }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-dvh">
+
+  <!-- Bildirimler -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 items-end"></div>
+
+  <!-- QR kod modalı -->
+  <div id="qr-modal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-xs w-full flex flex-col items-center gap-4">
+      <div class="flex items-center justify-between w-full">
+        <h3 class="text-sm font-semibold">QR Kod</h3>
+        <button type="button" id="qr-modal-close" class="icon-btn" title="Kapat">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="w-48 h-48 flex items-center justify-center bg-white rounded-xl overflow-hidden">
+        <img id="qr-modal-img" src="" alt="QR kod" class="w-full h-full object-contain hidden" />
+        <span id="qr-modal-loading" class="text-xs text-slate-500 px-4 text-center">Yükleniyor…</span>
+      </div>
+      <p id="qr-modal-url" class="text-xs text-slate-400 text-center break-all"></p>
+      <button type="button" id="qr-modal-download" class="btn-primary w-full flex items-center justify-center gap-1.5">
+        <i data-lucide="download" class="w-4 h-4"></i> İndir
+      </button>
+    </div>
+  </div>
+
+  <!-- Giriş ekranı -->
+  <div id="auth-gate" class="min-h-dvh flex items-center justify-center px-4">
+    <form id="auth-form" class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
+      <div>
+        <h1 class="text-lg font-semibold">Admin Girişi</h1>
+        <p class="text-sm text-slate-400 mt-1">Devam etmek için admin token'ınızı girin.</p>
+      </div>
+      <input id="auth-token-input" type="password" placeholder="Admin token" class="field-input" autocomplete="off" required />
+      <p id="auth-error" class="hidden text-sm text-red-400"></p>
+      <button type="submit" class="btn-primary w-full">Giriş Yap</button>
+    </form>
+  </div>
+
+  <!-- Admin uygulaması -->
+  <div id="admin-app" class="hidden min-h-dvh max-w-6xl mx-auto px-4 py-8 flex flex-col gap-6">
+    <header class="flex items-center justify-between flex-wrap gap-3">
+      <h1 class="text-xl font-semibold">Bio Sayfaları</h1>
+      <div class="flex gap-2">
+        <button id="new-btn" type="button" class="btn-secondary flex items-center gap-1.5">
+          <i data-lucide="plus" class="w-4 h-4"></i> Yeni Ekle
+        </button>
+        <button id="logout-btn" type="button" class="btn-secondary flex items-center gap-1.5">
+          <i data-lucide="log-out" class="w-4 h-4"></i> Çıkış
+        </button>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6 items-start">
+      <!-- Liste -->
+      <aside class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-1" id="page-list">
+        <p class="text-sm text-slate-500 px-2 py-4 text-center">Yükleniyor…</p>
+      </aside>
+
+      <!-- Form -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <form id="bio-form" class="flex flex-col gap-4">
+          <h2 id="form-title" class="text-base font-semibold">Yeni Bio Sayfası</h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Slug (URL adresi)</label>
+              <input id="field-slug" class="field-input" placeholder="ornek-kafe" required />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">İşletme Adı</label>
+              <input id="field-business-name" class="field-input" placeholder="Örnek Kafe" required />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Slogan</label>
+              <input id="field-tagline" class="field-input" placeholder="Şehrin en sevilen köşesi" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Logo</label>
+              <div class="flex items-center gap-3">
+                <div class="w-14 h-14 rounded-full overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
+                  <img id="logo-preview" src="" alt="" class="w-full h-full object-cover hidden" />
+                  <i data-lucide="image" class="w-5 h-5 text-slate-500" id="logo-preview-placeholder"></i>
+                </div>
+                <div class="flex flex-col gap-1 min-w-0">
+                  <input
+                    id="field-logo-file"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    class="text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-slate-800 file:text-slate-200 file:text-xs file:cursor-pointer hover:file:bg-slate-700"
+                  />
+                  <p id="logo-upload-status" class="hidden text-xs text-slate-400 flex items-center gap-1">
+                    <span class="w-3 h-3 rounded-full border-2 border-slate-500 border-t-transparent animate-spin"></span>
+                    Yükleniyor…
+                  </p>
+                  <p id="logo-upload-error" class="hidden text-xs text-red-400"></p>
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-slate-400">Tema Rengi</label>
+              <div class="flex items-center gap-2">
+                <input id="field-theme-color" type="color" value="#22c55e" class="h-9 w-12 rounded-md border border-slate-700 bg-slate-800" />
+                <span id="field-theme-color-hex" class="text-sm text-slate-400">#22c55e</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <label class="text-xs text-slate-400">Linkler</label>
+              <button type="button" id="add-link-btn" class="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Link Ekle
+              </button>
+            </div>
+            <div id="links-editor" class="flex flex-col gap-2"></div>
+          </div>
+
+          <div class="flex items-center justify-end pt-2 border-t border-slate-800">
+            <button type="submit" id="save-btn" class="btn-primary">Kaydet</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+
+<script>
+  const API_BASE_URL = "http://localhost:8000"; // production'da backend URL'inizle değiştirin
+  const PUBLIC_SITE_URL = "http://localhost:5500"; // production'da yayındaki site adresinizle değiştirin
+
+  let pages = [];
+  let currentLinks = [];
+  let currentLogoUrl = "";
+  let editingSlug = null; // null = yeni kayıt modu
+  let currentQrBlobUrl = null;
+  let currentQrSlug = null;
+
+  const ICON_OPTIONS = [
+    { value: "star", label: "⭐ Google Yorum" },
+    { value: "instagram", label: "📷 Instagram" },
+    { value: "message-circle", label: "💬 WhatsApp / Mesaj" },
+    { value: "utensils", label: "🍽️ Menü" },
+    { value: "map-pin", label: "📍 Konum" },
+    { value: "globe", label: "🌐 Web Sitesi" },
+    { value: "phone", label: "📞 Telefon" },
+    { value: "mail", label: "✉️ E-posta" },
+  ];
+  const CUSTOM_ICON_VALUE = "__custom__";
+  const isPresetIcon = (icon) => ICON_OPTIONS.some((o) => o.value === icon);
+
+  const el = (id) => document.getElementById(id);
+
+  function escapeHtml(str) {
+    return String(str ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  // ---------- Bildirimler ----------
+  function showToast(message, type = "success") {
+    const container = el("toast-container");
+    const toast = document.createElement("div");
+    toast.className = `toast ${type === "error" ? "error" : "success"}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(4px)";
+      setTimeout(() => toast.remove(), 250);
+    }, 3000);
+  }
+
+  // ---------- Token / auth ----------
+  const getToken = () => localStorage.getItem("admin_token") || "";
+  const setToken = (t) => localStorage.setItem("admin_token", t);
+  const clearToken = () => localStorage.removeItem("admin_token");
+
+  async function apiFetch(path, options = {}) {
+    return fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Token": getToken(),
+        ...(options.headers || {}),
+      },
+    });
+  }
+
+  function showAuthGate(message) {
+    el("admin-app").classList.add("hidden");
+    el("auth-gate").classList.remove("hidden");
+    if (message) {
+      el("auth-error").textContent = message;
+      el("auth-error").classList.remove("hidden");
+    }
+  }
+
+  function showAdminApp() {
+    el("auth-gate").classList.add("hidden");
+    el("admin-app").classList.remove("hidden");
+  }
+
+  async function attemptLogin(token) {
+    setToken(token);
+    try {
+      const res = await apiFetch("/api/admin/bio");
+      if (res.status === 401) {
+        clearToken();
+        return { ok: false, message: "Token geçersiz." };
+      }
+      if (!res.ok) return { ok: false, message: "Sunucudan beklenmeyen bir yanıt geldi." };
+      pages = await res.json();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, message: "Sunucuya bağlanılamadı. Backend çalışıyor mu?" };
+    }
+  }
+
+  el("auth-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    el("auth-error").classList.add("hidden");
+    const token = el("auth-token-input").value.trim();
+    if (!token) return;
+    const result = await attemptLogin(token);
+    if (result.ok) {
+      showAdminApp();
+      renderPageList();
+      resetForm();
+    } else {
+      showAuthGate(result.message);
+    }
+  });
+
+  el("logout-btn").addEventListener("click", () => {
+    clearToken();
+    location.reload();
+  });
+
+  // ---------- Logo yükleme ----------
+  function setLogoPreview(url) {
+    const img = el("logo-preview");
+    const placeholder = el("logo-preview-placeholder");
+    if (url) {
+      img.src = url;
+      img.classList.remove("hidden");
+      placeholder.classList.add("hidden");
+    } else {
+      img.src = "";
+      img.classList.add("hidden");
+      placeholder.classList.remove("hidden");
+    }
+  }
+
+  function showLogoUploadError(text) {
+    const p = el("logo-upload-error");
+    p.textContent = text;
+    p.classList.remove("hidden");
+  }
+
+  el("field-logo-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    el("logo-upload-error").classList.add("hidden");
+
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      showLogoUploadError("Sadece PNG, JPEG veya WEBP dosyaları desteklenir.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showLogoUploadError("Dosya boyutu 5MB'ı geçemez.");
+      e.target.value = "";
+      return;
+    }
+
+    el("logo-upload-status").classList.remove("hidden");
+    el("field-logo-file").disabled = true;
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${API_BASE_URL}/api/admin/upload`, {
+        method: "POST",
+        headers: { "X-Admin-Token": getToken() },
+        body: formData,
+      });
+
+      if (res.status === 401) {
+        showAuthGate("Oturum süresi doldu, tekrar giriş yapın.");
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showLogoUploadError(err.detail || "Yükleme başarısız.");
+        return;
+      }
+
+      const data = await res.json();
+      currentLogoUrl = data.url;
+      setLogoPreview(currentLogoUrl);
+      showToast("Logo yüklendi.", "success");
+    } catch (err) {
+      showLogoUploadError("Sunucuya bağlanılamadı.");
+    } finally {
+      el("logo-upload-status").classList.add("hidden");
+      el("field-logo-file").disabled = false;
+    }
+  });
+
+  // ---------- Sayfa listesi ----------
+  function renderPageList() {
+    const container = el("page-list");
+    if (!pages.length) {
+      container.innerHTML = `<p class="text-sm text-slate-500 px-2 py-4 text-center">Henüz bio sayfası yok.</p>`;
+      return;
+    }
+    container.innerHTML = pages
+      .map(
+        (p) => `
+      <div class="page-list-item-wrap ${p.slug === editingSlug ? "active" : ""}">
+        <button type="button" class="page-list-item-main" data-slug="${escapeHtml(p.slug)}">
+          <span class="text-sm font-medium truncate">${escapeHtml(p.business_name)}</span>
+          <span class="text-xs text-slate-500 truncate">/${escapeHtml(p.slug)}</span>
+        </button>
+        <div class="page-list-actions">
+          <button type="button" class="icon-btn" data-copy-slug="${escapeHtml(p.slug)}" title="Linki Kopyala">
+            <i data-lucide="link-2" class="w-3.5 h-3.5"></i>
+          </button>
+          <button type="button" class="icon-btn" data-qr-slug="${escapeHtml(p.slug)}" title="QR Kodu Göster">
+            <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+          </button>
+          <button type="button" class="icon-btn hover:text-red-400" data-delete-slug="${escapeHtml(p.slug)}" title="Sil">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>`
+      )
+      .join("");
+
+    container.querySelectorAll("[data-slug]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const page = pages.find((p) => p.slug === btn.dataset.slug);
+        if (page) loadIntoForm(page);
+      });
+    });
+    container.querySelectorAll("[data-copy-slug]").forEach((btn) => {
+      btn.addEventListener("click", () => copyBioLink(btn.dataset.copySlug));
+    });
+    container.querySelectorAll("[data-qr-slug]").forEach((btn) => {
+      btn.addEventListener("click", () => openQrModal(btn.dataset.qrSlug));
+    });
+    container.querySelectorAll("[data-delete-slug]").forEach((btn) => {
+      btn.addEventListener("click", () => deleteBioPage(btn.dataset.deleteSlug));
+    });
+
+    if (window.lucide) lucide.createIcons();
+  }
+
+  async function refreshPageList() {
+    const res = await apiFetch("/api/admin/bio");
+    if (res.status === 401) {
+      showAuthGate("Oturum süresi doldu, tekrar giriş yapın.");
+      return;
+    }
+    pages = await res.json();
+    renderPageList();
+  }
+
+  // ---------- Linki kopyala ----------
+  async function copyBioLink(slug) {
+    const url = `${PUBLIC_SITE_URL}/${slug}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Bağlantı kopyalandı.", "success");
+    } catch (err) {
+      showToast("Kopyalanamadı, tarayıcı izni gerekebilir.", "error");
+    }
+  }
+
+  // ---------- Silme ----------
+  async function deleteBioPage(slug) {
+    if (!confirm(`"${slug}" sayfasını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) {
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/admin/bio/${encodeURIComponent(slug)}`, { method: "DELETE" });
+      if (res.status === 401) {
+        showAuthGate("Oturum süresi doldu, tekrar giriş yapın.");
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || "Silinemedi.", "error");
+        return;
+      }
+      showToast("Bio sayfası silindi.", "success");
+      if (editingSlug === slug) resetForm();
+      await refreshPageList();
+    } catch (err) {
+      showToast("Sunucuya bağlanılamadı.", "error");
+    }
+  }
+
+  // ---------- QR kod modalı ----------
+  async function openQrModal(slug) {
+    currentQrSlug = slug;
+    el("qr-modal").classList.remove("hidden");
+    el("qr-modal-img").classList.add("hidden");
+    el("qr-modal-loading").classList.remove("hidden");
+    el("qr-modal-loading").textContent = "Yükleniyor…";
+    el("qr-modal-url").textContent = `${PUBLIC_SITE_URL}/${slug}`;
+
+    try {
+      const res = await apiFetch(`/api/admin/bio/${encodeURIComponent(slug)}/qr`);
+      if (res.status === 401) {
+        closeQrModal();
+        showAuthGate("Oturum süresi doldu, tekrar giriş yapın.");
+        return;
+      }
+      if (!res.ok) throw new Error("QR alınamadı");
+
+      const blob = await res.blob();
+      if (currentQrBlobUrl) URL.revokeObjectURL(currentQrBlobUrl);
+      currentQrBlobUrl = URL.createObjectURL(blob);
+      el("qr-modal-img").src = currentQrBlobUrl;
+      el("qr-modal-img").classList.remove("hidden");
+      el("qr-modal-loading").classList.add("hidden");
+    } catch (err) {
+      el("qr-modal-loading").textContent = "QR kod yüklenemedi.";
+      showToast("QR kod alınamadı.", "error");
+    }
+  }
+
+  function closeQrModal() {
+    el("qr-modal").classList.add("hidden");
+  }
+
+  el("qr-modal-close").addEventListener("click", closeQrModal);
+  el("qr-modal").addEventListener("click", (e) => {
+    if (e.target === el("qr-modal")) closeQrModal();
+  });
+  el("qr-modal-download").addEventListener("click", () => {
+    if (!currentQrBlobUrl) return;
+    const a = document.createElement("a");
+    a.href = currentQrBlobUrl;
+    a.download = `${currentQrSlug}-qr.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+
+  // ---------- Link editörü ----------
+  function iconOptionsHtml(currentIcon) {
+    const preset = isPresetIcon(currentIcon);
+    const options = ICON_OPTIONS.map(
+      (o) => `<option value="${o.value}" ${o.value === currentIcon ? "selected" : ""}>${o.label}</option>`
+    ).join("");
+    return `${options}<option value="${CUSTOM_ICON_VALUE}" ${!preset ? "selected" : ""}>🔧 Diğer (özel ikon adı)</option>`;
+  }
+
+  function renderLinksEditor() {
+    // Sayfa boş kalmasın: link kalmadıysa otomatik olarak doldurulacak boş bir satır ekle.
+    if (!currentLinks.length) {
+      currentLinks.push({ label: "", url: "", icon: "star" });
+    }
+
+    const container = el("links-editor");
+    container.innerHTML = currentLinks
+      .map((link, i) => {
+        const preset = isPresetIcon(link.icon);
+        return `
+      <div class="flex flex-col gap-2 bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input data-idx="${i}" data-field="label" value="${escapeHtml(link.label)}" placeholder="Etiket (örn. Instagram)" class="link-field field-input" />
+          <div class="flex flex-col gap-1">
+            <select data-idx="${i}" data-role="icon-select" class="link-field field-input">
+              ${iconOptionsHtml(link.icon)}
+            </select>
+            <input
+              data-idx="${i}"
+              data-role="icon-custom"
+              data-field="icon"
+              value="${escapeHtml(link.icon)}"
+              placeholder="özel ikon adı (örn. tiktok)"
+              class="link-field field-input ${preset ? "hidden" : ""}"
+            />
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input data-idx="${i}" data-field="url" value="${escapeHtml(link.url)}" placeholder="https://..." class="link-field field-input flex-1" />
+          <button type="button" data-action="up" data-idx="${i}" class="icon-btn" ${i === 0 ? "disabled" : ""} title="Yukarı taşı">
+            <i data-lucide="chevron-up" class="w-4 h-4"></i>
+          </button>
+          <button type="button" data-action="down" data-idx="${i}" class="icon-btn" ${i === currentLinks.length - 1 ? "disabled" : ""} title="Aşağı taşı">
+            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+          </button>
+          <button type="button" data-action="remove" data-idx="${i}" class="icon-btn hover:text-red-400" title="Sil">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>`;
+      })
+      .join("");
+
+    container.querySelectorAll("input.link-field").forEach((input) => {
+      input.addEventListener("input", () => {
+        const idx = Number(input.dataset.idx);
+        currentLinks[idx][input.dataset.field] = input.value;
+      });
+    });
+    container.querySelectorAll("select[data-role='icon-select']").forEach((select) => {
+      select.addEventListener("change", () => {
+        const idx = Number(select.dataset.idx);
+        if (select.value === CUSTOM_ICON_VALUE) {
+          currentLinks[idx].icon = "";
+          renderLinksEditor();
+          const customInput = container.querySelector(`input[data-role="icon-custom"][data-idx="${idx}"]`);
+          if (customInput) customInput.focus();
+        } else {
+          currentLinks[idx].icon = select.value;
+          renderLinksEditor();
+        }
+      });
+    });
+    container.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.dataset.idx);
+        const action = btn.dataset.action;
+        if (action === "remove") {
+          currentLinks.splice(idx, 1);
+        } else if (action === "up" && idx > 0) {
+          [currentLinks[idx - 1], currentLinks[idx]] = [currentLinks[idx], currentLinks[idx - 1]];
+        } else if (action === "down" && idx < currentLinks.length - 1) {
+          [currentLinks[idx + 1], currentLinks[idx]] = [currentLinks[idx], currentLinks[idx + 1]];
+        }
+        renderLinksEditor();
+        if (window.lucide) lucide.createIcons();
+      });
+    });
+
+    if (window.lucide) lucide.createIcons();
+  }
+
+  el("add-link-btn").addEventListener("click", () => {
+    currentLinks.push({ label: "", url: "", icon: "star" });
+    renderLinksEditor();
+  });
+
+  el("field-theme-color").addEventListener("input", (e) => {
+    el("field-theme-color-hex").textContent = e.target.value;
+  });
+
+  // ---------- Form durumu ----------
+  function resetForm() {
+    editingSlug = null;
+    el("form-title").textContent = "Yeni Bio Sayfası";
+    el("field-slug").value = "";
+    el("field-slug").disabled = false;
+    el("field-business-name").value = "";
+    el("field-tagline").value = "";
+    el("field-logo-file").value = "";
+    currentLogoUrl = "";
+    setLogoPreview("");
+    el("logo-upload-error").classList.add("hidden");
+    el("field-theme-color").value = "#22c55e";
+    el("field-theme-color-hex").textContent = "#22c55e";
+    currentLinks = [];
+    renderLinksEditor();
+    el("save-btn").textContent = "Kaydet";
+    renderPageList();
+  }
+
+  function loadIntoForm(page) {
+    editingSlug = page.slug;
+    el("form-title").textContent = `Düzenle: ${page.business_name}`;
+    el("field-slug").value = page.slug;
+    el("field-slug").disabled = true;
+    el("field-business-name").value = page.business_name || "";
+    el("field-tagline").value = page.tagline || "";
+    el("field-logo-file").value = "";
+    currentLogoUrl = page.logo_url || "";
+    setLogoPreview(currentLogoUrl);
+    el("logo-upload-error").classList.add("hidden");
+    el("field-theme-color").value = page.theme_color || "#22c55e";
+    el("field-theme-color-hex").textContent = page.theme_color || "#22c55e";
+    currentLinks = (page.links || []).map((l) => ({ ...l }));
+    renderLinksEditor();
+    el("save-btn").textContent = "Güncelle";
+    renderPageList();
+  }
+
+  el("new-btn").addEventListener("click", resetForm);
+
+  el("bio-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const businessName = el("field-business-name").value.trim();
+    if (!businessName) {
+      showToast("İşletme adı zorunlu.", "error");
+      el("field-business-name").focus();
+      return;
+    }
+    if (!editingSlug && !el("field-slug").value.trim()) {
+      showToast("Slug zorunlu.", "error");
+      el("field-slug").focus();
+      return;
+    }
+
+    const payload = {
+      business_name: businessName,
+      tagline: el("field-tagline").value.trim(),
+      logo_url: currentLogoUrl,
+      theme_color: el("field-theme-color").value,
+      links: currentLinks
+        .map((l) => ({ label: (l.label || "").trim(), url: (l.url || "").trim(), icon: (l.icon || "star").trim() }))
+        .filter((l) => l.label && l.url),
+    };
+
+    const saveBtn = el("save-btn");
+    saveBtn.disabled = true;
+
+    try {
+      let res;
+      if (editingSlug) {
+        res = await apiFetch(`/api/admin/bio/${encodeURIComponent(editingSlug)}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await apiFetch("/api/admin/bio", {
+          method: "POST",
+          body: JSON.stringify({ slug: el("field-slug").value.trim(), ...payload }),
+        });
+      }
+
+      if (res.status === 401) {
+        showAuthGate("Oturum süresi doldu, tekrar giriş yapın.");
+        return;
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || "Kaydedilemedi.", "error");
+        return;
+      }
+
+      const saved = await res.json();
+      const wasEditing = Boolean(editingSlug);
+      await refreshPageList();
+      loadIntoForm(saved);
+      showToast(wasEditing ? "Güncellendi." : "Oluşturuldu.", "success");
+    } catch (err) {
+      showToast("Sunucuya bağlanılamadı.", "error");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  // ---------- Başlangıç ----------
+  (async function init() {
+    const token = getToken();
+    if (!token) {
+      showAuthGate();
+      return;
+    }
+    const result = await attemptLogin(token);
+    if (result.ok) {
+      showAdminApp();
+      renderPageList();
+      resetForm();
+    } else {
+      showAuthGate(result.message);
+    }
+    if (window.lucide) lucide.createIcons();
+  })();
+
+  if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
