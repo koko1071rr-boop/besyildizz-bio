@@ -141,14 +141,15 @@ eşleştirmeyi unutmayın (`backend/.env` dosyasında).
 1. Railway'de yeni proje oluşturup bu repoyu bağlayın, **Root Directory**'yi
    `backend` olarak ayarlayın (Procfile zaten `backend/` içinde, Railway'i
    otomatik algılar).
-2. Railway'in Variables sekmesinden `.env`'deki değerleri girin: `ADMIN_TOKEN`,
-   `ALLOWED_ORIGINS` (Vercel domain'iniz, örn. `https://besyildizz.bio`),
-   `PUBLIC_SITE_URL` (aynı domain).
-3. **Kalıcı depolama önemli:** SQLite dosyası (`biopages.db`) ve yüklenen logolar
-   (`uploads/`) container'ın diskinde tutulur; Railway'in dosya sistemi varsayılan
-   olarak kalıcı değildir. Railway'de bir **Volume** oluşturup `backend/` dizinine
-   (ya da `biopages.db` ve `uploads/`'ı içeren bir alt yola) mount edin, aksi halde
-   her deploy'da veriler ve yüklenen logolar silinir.
+2. Railway'in Variables sekmesinden `.env`'deki değerleri girin: `ADMIN_TOKEN`
+   (güçlü/rastgele bir değer), `ALLOWED_ORIGINS` (Vercel domain'iniz, örn.
+   `https://besyildizz.bio`), `PUBLIC_SITE_URL` (aynı domain), `DATA_DIR=/data`.
+3. **Kalıcı depolama şart:** Railway'in dosya sistemi varsayılan olarak kalıcı
+   değildir — bir **Volume** eklemezseniz SQLite veritabanı (`biopages.db`) ve
+   yüklenen logolar (`uploads/`) her redeploy'da sıfırlanır. Service → **Settings
+   → Volumes → New Volume** ile bir Volume oluşturup mount path'i `/data` yapın;
+   `DATA_DIR=/data` değişkeni sayesinde uygulama veritabanını ve yüklenen
+   dosyaları otomatik olarak bu kalıcı dizine yazar.
 4. Deploy sonrası verilen `https://xxxx.up.railway.app` (veya bağladığınız custom
    domain) adresini not edin — bir sonraki adımda frontend'e bu adresi vereceksiniz.
 

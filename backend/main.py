@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from database import Base, SessionLocal, engine
+from database import DATA_DIR, Base, SessionLocal, engine
 
 load_dotenv()
 
@@ -35,8 +35,8 @@ ALLOWED_ORIGINS = [
 # Production'da gerçek domain'inizle değiştirin, örn: https://besyildizz.bio
 PUBLIC_SITE_URL = os.getenv("PUBLIC_SITE_URL", "http://localhost:5500").rstrip("/")
 
-UPLOAD_DIR = Path(__file__).parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = Path(DATA_DIR) / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_UPLOAD_TYPES = {
     "image/png": ".png",
